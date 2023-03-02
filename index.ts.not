@@ -1,0 +1,86 @@
+
+function enumerable(value: boolean) {
+  return function (target:any, name:string, description?:any) {
+    if (description) {
+      description.enumerable = value;
+      return description;
+    }
+    Object.defineProperty(target, name, {
+      set (v:unknown) {
+        Object.defineProperty(this, name, {
+          value: v,
+          enumerable: value,
+          writable: true,
+          configurable: true,
+        })
+      },
+      enumerable: value,
+      configurable: true,
+    });
+  }
+};
+
+function alias(name:string) {
+  
+}
+
+
+type Definition = {
+  [key:string]:any
+  
+};
+
+function item<T>(def:Definition = {}) {
+  // return function<T extends Item>(constructor:T) {
+  //   return class extends constructor {
+  //     private PK = 'PK';
+  //   }
+  //   // Object.defineProperty(constructor.prototype, 'PK', {
+  //   //   configurable: true,
+  //   //   enumerable: true,
+  //   //   writable: true,
+  //   //   value: 'PK',
+  //   // });
+  // };
+}
+
+function test(def={}) {
+  return function(constructor:Function) {
+    console.log('test', constructor.prototype);
+  };
+}
+
+function field(target: any, name:string) {
+  //console.log('field', target, name);
+}
+
+type Item = {};
+
+abstract class Dynamo {
+  static findOneByKey(key:{}) : Promise<Item> {
+    return new Promise((rez,rej) => rez({}));
+  }
+}
+
+@test()
+class Profile {
+  @field
+  name:string = 'profile';
+
+  @enumerable(false)
+  email:string = 'email';
+
+  constructor(data?) {
+    // super();
+  }
+
+  static findOneById(id:string) {
+    return new Promise((rez,rej) => Dynamo.findOneByKey({}).then(item => rez(new Profile(item))));
+  }
+};
+
+const p1st = new Profile;
+
+(async () => {
+  console.log(await Profile.findOneById('?'));
+})();

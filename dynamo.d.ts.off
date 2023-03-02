@@ -1,0 +1,51 @@
+declare module 'dynamo' {
+  
+  type SchemaType<T> = { type:T, default?:any };
+  type StringSchemaType = typeof String | 'string' | 'String';
+  type NumberSchemaType = typeof Number | 'number' | 'Number';
+  type DateSchemaType = typeof Date | 'date' | 'Date';
+
+
+  type StringType = string & SchemaType<string>;
+
+
+  class PathTypeSchema<T> {
+    type?:T extends string ? StringSchemaType :
+            T extends number ? NumberSchemaType :
+              unknown;
+    default?: any|null;
+  }
+
+
+  type IfEquals<T, U, Y = true, N = false> = (<G>() => G extends T ? 1 : 0) extends (<G>() => G extends U ? 1 : 0) ? Y : N;
+
+  type ResolvePathType<PathType, Options extends PathTypeSchema<PathType> = {},  TypeKey extends string = 'type'> = 
+    PathType extends DateSchemaType ? Date :
+      IfEquals<PathType, String> extends true ? string :
+        PathType extends typeof String ? string :
+          PathType extends typeof Number ? number :    
+            unknown;
+
+  type PathWithType<TypeKey extends string = 'type'> = { [k in TypeKey]:any };
+
+  // type ObtainPathType<FieldType/*=type OR default*/, TypeKey extends string = 'type'> = 
+  //   ResolvePathType<FieldType extends PathWithType<TypeKey> ? FieldType[TypeKey] : FieldType, TypeKey>;
+
+  type ObtainPathType<PathType /*={type:?,default:?}*/, TypeKey extends string = 'type'> = 
+    ResolvePathType<PathType extends PathWithType<TypeKey> ? PathType[TypeKey] : PathType, 
+                    PathType extends PathWithType<TypeKey> ? Omit<PathType,TypeKey> : {},
+                    TypeKey>;
+
+
+  type ObtainDocType<DocDef, TypeKey extends string = 'type'> = { 
+    [K in keyof DocDef]: ObtainPathType<DocDef[K], TypeKey>;
+  };
+
+  class Schema<
+    DocType extends ObtainDocType<DocType> = ObtainDocType<any>
+  > {
+    constructor(def:DocType);
+  }
+
+  type InferSchemaType<TSchema> = TSchema extends Schema<infer DocType> ? DocType : unknown;
+}

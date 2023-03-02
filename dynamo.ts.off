@@ -1,0 +1,72 @@
+
+type PathWithType<TypeKey extends string = 'type'> = { [k in TypeKey]:any };
+
+class PathSchema<T> {
+  type: T extends String ? string :
+          T extends Number ? number :
+            T extends Date ? Date :
+              unknown;
+  
+  default?: any|null;
+}
+
+
+type PathDefinition<T = undefined> = PathSchema<T extends undefined ? any : T>;
+
+type ResolvePathType<PathType, TypeKey extends string = 'type'> = 
+  PathType extends typeof String ? string :
+    PathType extends typeof Number ? number :
+      PathType extends typeof Date ? Date :
+      PathType;
+
+
+
+type ObtainPathType<PathType /*={type:?,default:?}*/, TypeKey extends string = 'type'> = 
+  ResolvePathType<PathType extends PathWithType<TypeKey> ? PathType[TypeKey] : PathType>; 
+
+type ObtainDocType<DocDef> = {
+  [K in keyof DocDef]: ObtainPathType<DocDef[K]>
+};
+
+type SchemaDefinition<DocDef, TypeKey extends string = 'type'> = {
+  [K in keyof DocDef]: DocDef[K] extends PathWithType<TypeKey> ? PathDefinition<DocDef[K][TypeKey]> : DocDef[K];
+}
+
+type SchemaConfig = {
+
+};
+
+class Schema<
+  DocType extends ObtainDocType<DocDef>,
+  DocDef extends SchemaDefinition<DocDef> = {},
+> {
+  constructor(definition?:DocDef, config?:SchemaConfig) { }
+};
+
+
+
+const schema = new Schema({
+  name: String, // default:'N/A'},
+  created: {type:Date, default:0, get:1},
+  email: {type:String},
+  age: {type:Number},
+});
+
+type ObtainSchemaType<TSchema, alias extends 'DocType' | 'DocDef'> = TSchema extends Schema< infer DocType, infer DocDef> ? {
+  DocType:DocType,
+  DocDef:DocDef,
+}[alias] : unknown;
+
+type InferSchemaType<TSchema> = ObtainSchemaType<TSchema, 'DocType'>;
+type InferSchemaDef<TSchema> = ObtainSchemaType<TSchema, 'DocDef'>;
+
+type Type = InferSchemaType<typeof schema>;
+type Def = InferSchemaDef<typeof schema>;
+
+function make() : Type {
+  return {} as Type;
+};
+let xxx = make();
+xxx.created;
+
+

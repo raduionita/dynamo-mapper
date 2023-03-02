@@ -1,0 +1,141 @@
+
+// import { Schema, InferSchemaType } from 'dynamo';
+
+class SchemaType<T = undefined> {
+
+};
+
+type StringType = string & SchemaType<string>;
+type NumerType = number & SchemaType<number>;
+
+
+type StringSchemaType = typeof String | 'string' | 'String' | StringType;
+type NumberSchemaType = typeof Number | 'number' | 'Number' | NumerType;
+type DateSchemaType = typeof Date | 'date' | 'Date';
+
+
+
+
+
+class PathTypeSchema<T = undefined> {
+  type?:T extends string ? StringSchemaType :
+          T extends number ? NumberSchemaType :
+            T extends Date ? DateSchemaType :
+              unknown;
+  default?: any|null;
+}
+
+
+type IfEquals<T, U, Y = true, N = false> = (<G>() => G extends T ? 1 : 0) extends (<G>() => G extends U ? 1 : 0) ? Y : N;
+
+type ResolvePathType<PathType, Options extends PathTypeSchema<PathType> = {},  TypeKey extends string = 'type'> = 
+  PathType extends StringSchemaType ? string :
+    IfEquals<PathType, String> extends true ? string :
+      PathType extends typeof String ? string :
+        PathType extends DateSchemaType ? Date :
+          PathType extends typeof Number ? number :    
+            unknown;
+
+type PathWithType<TypeKey extends string = 'type'> = { [k in TypeKey]:any };
+
+// type ObtainPathType<FieldType/*=type OR default*/, TypeKey extends string = 'type'> = 
+//   ResolvePathType<FieldType extends PathWithType<TypeKey> ? FieldType[TypeKey] : FieldType, TypeKey>;
+
+type ObtainPathType<PathType /*={type:?,default:?}*/, TypeKey extends string = 'type'> = 
+  ResolvePathType<PathType extends PathWithType<TypeKey> ? PathType[TypeKey] : PathType, 
+                  PathType extends PathWithType<TypeKey> ? Omit<PathType,TypeKey> : {},
+                  TypeKey>;
+
+
+type IsPathRequired<P, TypeKey extends string = 'type'> = 
+  P extends { required: true } ? true : false;
+
+type RequiredPathKeys<T, TypeKey extends string = 'type'> = {
+  [K in keyof T]: IsPathRequired<T[K], TypeKey> extends true ? IfEquals<T[K], any, never, K> : never;
+}[keyof T];
+
+type RequiredPaths<T, TypeKey extends string = 'type'> = {
+  [K in RequiredPathKeys<T, TypeKey>]: T[K];
+};
+
+type OptionalPathKeys<T, TypeKey extends string = 'type'> = {
+  [K in keyof T]: IsPathRequired<T[K], TypeKey> extends true ? never : K;
+}[keyof T];
+
+type OptionalPaths<T, TypeKey extends string = 'type'> = {
+  [K in OptionalPathKeys<T, TypeKey>]: T[K];
+};
+
+type ObtainDocType<DocDef, TypeKey extends string = 'type'> = { 
+  // [K in keyof (RequiredPaths<DocDef, TypeKey> & OptionalPaths<DocDef,TypeKey>)]: ObtainPathType<DocDef[K], TypeKey>;
+  [K in keyof DocDef]: ObtainPathType<DocDef[K], TypeKey>;
+};
+
+type SchemaDefProp<T = undefined> = PathTypeSchema<T extends undefined ? any : T>;
+
+type SchemaDef<T = undefined> = T extends undefined
+  ? { [path: string]: SchemaDefProp; }
+  : { [P in keyof T]?: SchemaDefProp<T[P]> };
+
+class Schema<
+  DocType extends ObtainDocType<DocType> = ObtainDocType<any>
+> {
+  constructor(def?:SchemaDef | DocType) { }
+}
+
+// type Model = InferModelType<typeof Schema>
+
+const schema = new Schema({
+  name: {type:String}, // default:'N/A'},
+  created: {type:Date, default:0},
+  email: {type:String},
+  age: {type:Number},
+});
+
+
+type InferSchemaType<TSchema> = TSchema extends Schema<infer DocType> ? DocType : unknown;
+
+type Type = InferSchemaType<typeof schema>;
+
+function make() : Type {
+  return {} as Type;
+};
+let xxx = make();
+xxx.created;
+
+
+
+export function model<
+  DocType extends ObtainDocType<DocType> = ObtainDocType<any>, 
+  ConfDef = {}>(def:DocType,config?:ConfDef) {
+
+  const schema = new Schema(def);
+
+  type Type = InferSchemaType<typeof schema>;
+
+
+
+  type Model = { 
+    new () : Type 
+    findOneById(id:string) : Type;
+  };
+
+  const Dynamic: Model = function (this:Model) {
+    this.findOneById = (id:string) : Type => {
+      return null;
+    };
+  } as any;
+
+  return Dynamic;
+}
+
+
+export const UserModel = model({
+  name: {type:String},
+  age: {type:Number},
+}, { });
+
+const user = new UserModel;
+
+
+UserModel.findOneById('')

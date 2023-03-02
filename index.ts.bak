@@ -1,0 +1,156 @@
+
+type Never<K extends keyof any> = {
+  [P in K]: never;
+};
+
+type Locked<T, U extends T = T> = U & Never<Exclude<keyof U, keyof T>>
+
+type PathWithType<TypeKey extends string = 'type'> = { [k in TypeKey]:any };
+
+class PathSchema<T> {
+  type: T extends String ? string :
+          T extends Number ? number :
+            T extends Date ? Date :
+              unknown;
+  
+  default?: any|null;
+}
+
+type ResolvePathType<PathType, TypeKey extends string = 'type'> = 
+  PathType extends typeof String ? string :
+    PathType extends typeof Number ? number :
+      PathType extends typeof Date ? Date :
+        PathType;
+
+type ObtainPathType<PathType /*={type:?,default:?}*/, TypeKey extends string = 'type'> = 
+  ResolvePathType<PathType extends PathWithType<TypeKey> ? PathType[TypeKey] : PathType>; 
+
+type ObtainDocType<TSchemaDefinition> = {
+  [K in keyof TSchemaDefinition]: ObtainPathType<TSchemaDefinition[K]>
+};
+
+
+type SchemaConfig<T> = {
+  [K in keyof T]
+};
+
+type PathDefinition<T> = PathSchema<T>
+
+type SchemaDefinition<T, TypeKey extends string = 'type'> = {
+  [K in keyof T]: T[K] extends PathWithType<TypeKey> ? PathSchema<T[K][TypeKey]> : T[K];
+}
+
+class Schema<
+  TSchemaDefinition extends SchemaDefinition<TSchemaDefinition> = {},
+  TSchemaConfig extends SchemaConfig<TSchemaConfig> = {},
+  DocType extends {[k:string]:any} = ObtainDocType<TSchemaDefinition>,
+> {
+  constructor(definition?:TSchemaDefinition, config?:TSchemaConfig) {
+
+  }
+}
+
+
+
+
+type ObtainSchemaType<TSchema, alias extends 'TSchemaDefinition'|'TSchemaConfig'|'DocType'> = TSchema extends Schema<infer TSchemaDefinition, infer TSchemaConfig, infer DocType> ? {
+  TSchemaDefinition:TSchemaDefinition,
+  TSchemaConfig:TSchemaConfig,
+  DocType:DocType,
+}[alias] : unknown;
+
+type InferSchemaType<TSchema> = ObtainSchemaType<TSchema, 'DocType'>
+
+
+type Model<Type> = {
+  new() : Type;
+  findOneById(id:string) : Type
+};
+
+
+function model<
+  TSchemaDefinition extends SchemaDefinition<TSchemaDefinition> = {},
+  TSchemaConfig extends SchemaConfig<TSchemaConfig> = {},
+>(definition?:TSchemaDefinition, config?:TSchemaConfig) : Model<InferSchemaType<Schema<TSchemaDefinition, TSchemaConfig>>> {
+
+  const schema = new Schema(definition,config);
+
+  type Type = Model<InferSchemaType<Schema<TSchemaDefinition, TSchemaConfig>>>;
+
+
+  const Model:Type = function(this:Type) {
+
+  } as any;
+
+  Model.findOneById = function(id:string) {
+    console.log('Model.findOneById');
+    return null;
+  }
+
+  return Model;
+};
+
+
+const UserModel = model({
+  name:String,
+  age:{type:Number, default:1, get:1},
+  created:{type:Date, get:''},
+}, {
+  pk: '',
+});
+
+//type Type = InferSchemaType<>;
+
+UserModel.findOneById('');
+
+let u1 = new UserModel;
+console.log(u1);
+
+
+
+function enumerable(value: boolean) {
+  return function (target: any, propertyKey: string) {
+    let descriptor = Object.getOwnPropertyDescriptor(target, propertyKey) || {};
+    if (descriptor.enumerable != value) {
+      descriptor.enumerable = value;
+      descriptor.writable = true;
+      Object.defineProperty(target, propertyKey, descriptor)
+    }
+  };
+}
+
+class Document {
+  [key:string]:any;
+
+  constructor(data?:{}) {
+    console.log('Document.constructor', this)
+    for (const key in data) {
+      this[key] = data[key];
+    }
+  }
+
+  static findOneById(id:string) {
+    
+  }
+};
+
+
+class User extends Document {
+  name:string = 'name';
+
+  constructor(data?:{}) {
+    super(data);
+    Object.assign(this,data);
+    console.log('User.constructor', this)
+  }
+
+  static findOneById(id: string): User {
+    return null;
+  }
+};
+
+
+const u2 = new User({name:'N/A'});
+
+
+console.log(u2);

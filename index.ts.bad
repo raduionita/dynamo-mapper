@@ -1,0 +1,135 @@
+import { DynamoDBClient, BatchGetItemCommand, DeleteItemCommand, GetItemCommand, PutItemCommand, AttributeValue } from "@aws-sdk/client-dynamodb";
+
+export type Item = Record<string,AttributeValue>;
+export type Key = { PK : AttributeValue, SK : AttributeValue };
+
+class DynamoDBLocal extends DynamoDBClient {
+}
+
+export abstract class Dynamo {
+  static get TABLE():string { return process.env.DYNAMO_TABLE; }
+
+  static client:DynamoDBClient;
+
+  static getClient ():DynamoDBClient {
+    if (!Dynamo.client) {
+      Dynamo.client = new DynamoDBClient({
+        
+        region: process.env.AWS_REGION,
+        //endpoint: process.env.DYNAMO_ENDPOINT,
+        credentials: {
+          accessKeyId: process.env.DYNAMO_ACCESS_KEY_ID,
+          secretAccessKey: process.env.DYNAMO_SECRET_ACCESS_KEY,
+        }
+      });
+    }
+    return Dynamo.client;
+  };
+
+  static findOneByKey(key:Key) : Promise<Item> {
+    return new Promise((rez, rej) => {
+      Dynamo.getClient().send(new GetItemCommand({
+        TableName: Dynamo.TABLE,
+        Key: key,
+      })).then(data => {
+        rez(data.Item);
+      }).catch(fail => {
+        rej(fail);
+      });
+    });
+  }
+};
+
+type PathWithType<TypeKey extends string = 'type'> = { [k in TypeKey]:any };
+
+type ResolvePathType<PathType, TypeKey extends string = 'type'> = 
+  PathType extends typeof String ? string :
+    PathType extends typeof Number ? number :
+      PathType extends typeof Date ? Date :
+        PathType;
+
+type ObtainPathType<PathType /*={type:?,default:?}*/, TypeKey extends string = 'type'> = 
+  ResolvePathType<PathType extends PathWithType<TypeKey> ? PathType[TypeKey] : PathType>; 
+
+type ObtainDocType<TSchemaDefinition> = {
+  [K in keyof TSchemaDefinition]: ObtainPathType<TSchemaDefinition[K]>
+};
+
+
+class Schema<
+  TSchemaDefinition extends ModelSchema<TSchemaDefinition> = {},
+  TSchemaConfig extends ModelConfig<TSchemaConfig> = {},
+  DocType = ObtainDocType<TSchemaDefinition>,
+> {
+  constructor(definition?:TSchemaDefinition, config?:TSchemaConfig) {
+
+  }
+}
+
+
+type ObtainSchemaType<TSchema, alias extends 'TSchemaDefinition'|'TSchemaConfig'|'DocType'> = TSchema extends Schema<infer TSchemaDefinition, infer TSchemaConfig, infer DocType> ? {
+  TSchemaDefinition:TSchemaDefinition,
+  TSchemaConfig:TSchemaConfig,
+  DocType:DocType,
+}[alias] : unknown;
+
+type InferSchemaType<TSchema> = ObtainSchemaType<TSchema, 'DocType'>
+
+class FieldSchema<T> {
+  type: T extends String ? string :
+          T extends Number ? number :
+            T extends Date ? Date :
+              unknown;
+  
+  default?: any|null;
+}
+
+type ModelConfig<T> = {
+  [K in keyof T]
+};
+
+type ModelSchema<TModelSchema, TypeKey extends string = 'type'> = {
+  [K in keyof TModelSchema]: TModelSchema[K] extends PathWithType<TypeKey> ? FieldSchema<TModelSchema[K][TypeKey]> : TModelSchema[K];
+}
+
+type Model<Document> = {
+  new() : Document;
+  findOneById(id:string) : Promise<Document|null>
+};
+
+function model<
+  TModelSchema extends ModelSchema<TModelSchema> = {},
+  TModelConfig extends ModelConfig<TModelConfig> = {}
+>(schema?:TModelSchema, config?:TModelConfig) {
+
+  type Document = InferSchemaType<Schema<TModelSchema, TModelConfig>>;
+  type Type = Model<Document>;
+
+  const Model:Type = function(this:Document) {
+    for (const key in schema) {
+      const field = schema[key];
+      if (typeof field === 'object' && field['default']) {
+        this[key] = field['default'];
+      }
+    }
+  } as any;
+
+  Model.findOneById = function (id:string) : Promise<Document> {
+    return new Promise<Document>((rej, rez) => {
+      rez({});
+    });
+  };
+
+  return Model;
+}
+
+
+export const User = model({
+  name: String,
+  age: {type:Number, default:18},
+  created: {type:Date},
+}, { });
+
+const u1st = new User;
+
+console.log(u1st);
