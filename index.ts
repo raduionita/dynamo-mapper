@@ -12,11 +12,13 @@ export class Resolver<T = unknown> {
     }
   }
 
+  // first conditional promise
   try(trier:Call) : Resolver<T> {
     this._trier.call = trier;
     return this;
   }
 
+  // adds a processing call back to the last ".try" or ".or" 
   then(call:(data:unknown)=>unknown) : Resolver<T> {
     if (this._orers.length === 0) {
       // or/elser has not been set, add to _trier
@@ -28,11 +30,13 @@ export class Resolver<T = unknown> {
     return this;
   }
 
+  // triggered if ".try" or previous ".or" returned nothing
   or(call:Call) : Resolver<T> {
     this._orers.push({call:call, thens:[]});
     return this;
   }
 
+  // returns wrappe promise
   exec() : Promise<T> {
     return new Promise(async (rez, rej) => {
       const data = await (this._trier.call());
@@ -79,10 +83,21 @@ export function resolver<T = unknown>(trier?:Call) : Resolver<T> {
   return new Resolver(trier);
 }
 
+// TRY promise
+//   if result has something
+//     THEN execute "then" callbacks
+//   else
+//     OR promise
+//       if result 
+//         THEN callback
+//       else
+//         OR promise
+//           ...and so on
+
 (async () => {
-  const data = await resolver().try(() => new Promise((rez,rej) => rez(null))) // if found => return
+  const data = await resolver().try(() => new Promise((rez,rej) => rez(null))) // IF found => return ELSE => or
                                  .then((data:{}) => ({'then':'1.1', ...data}))
-                               .or(() => new Promise((rez,rej) => rez(null))) // if not found return
+                               .or(() => new Promise((rez,rej) => rez(null))) // IF not found THEN next OR
                                  .then((data:{}) => ({'then':'2.1', ...data}))
                                  .then((data:{}) => new Promise((rez,rej) => rez({...data, then:'2.2'})))
                                  .then((data:{}) => new Promise((rez,rej) => rez(1)))
